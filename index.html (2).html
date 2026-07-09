@@ -31,8 +31,7 @@
     box-shadow: 0 0 40px rgba(0,0,0,0.06);
   }
   header.brand{
-    background: var(--navy);
-    background-image: linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 100%);
+    background: #000000;
     padding:28px 32px 24px;
     color:#fff;
     text-align:center;
@@ -93,6 +92,17 @@
     background:#fff;
     color:var(--ink);
   }
+  select optgroup{
+    font-weight:700;
+    font-style:normal;
+    color:var(--red);
+    background:var(--paper);
+  }
+  select option{
+    font-weight:400;
+    color:var(--ink);
+    background:#fff;
+  }
   select:focus, input:focus{
     outline:none;
     border-color:var(--focus);
@@ -123,6 +133,15 @@
   .radio-line input{
     width:16px; height:16px; accent-color:var(--red); flex:none;
   }
+  .check-line{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:14px;
+  }
+  .check-line input{
+    width:16px; height:16px; accent-color:var(--red); flex:none;
+  }
 
   #qtyField{
     margin-bottom:22px;
@@ -130,6 +149,38 @@
   }
 
   .product-field{ margin-bottom:22px; }
+
+  #letterFields{
+    margin-bottom:22px;
+    padding:16px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:var(--paper);
+  }
+  .letter-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:16px;
+    margin-bottom:14px;
+  }
+  .letter-pair{
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .letter-pair label{
+    font-size:12px;
+    font-weight:700;
+    color:var(--ink-soft);
+    white-space:nowrap;
+  }
+  .letter-pair input{
+    width:70px;
+    padding:8px 10px;
+    font-size:14px;
+    border:1px solid var(--line);
+    border-radius:6px;
+  }
 
   .actions{
     display:grid;
@@ -210,7 +261,7 @@
 
   <main>
 
-    <div class="row">
+    <div class="row" id="dimensionsRow">
       <div class="field">
         <label for="widthInput">Ширина</label>
         <div class="field-with-unit">
@@ -240,6 +291,24 @@
 
     <div class="product-field">
       <select id="productSel"></select>
+    </div>
+
+    <div id="letterFields" style="display:none;">
+      <div class="letter-row">
+        <div class="letter-pair">
+          <label>бр.</label><input type="number" id="count1Input" min="0">
+          <label>cm</label><input type="number" id="height1Input" min="0">
+        </div>
+        <div class="letter-pair" id="pair2" style="display:none;">
+          <label>бр.</label><input type="number" id="count2Input" min="0">
+          <label>cm</label><input type="number" id="height2Input" min="0">
+        </div>
+        <div class="letter-pair" id="pair3" style="display:none;">
+          <label>бр.</label><input type="number" id="count3Input" min="0">
+          <label>cm</label><input type="number" id="height3Input" min="0">
+        </div>
+      </div>
+      <label class="check-line"><input type="checkbox" id="notEqualCheck"> Не са еднакви</label>
     </div>
 
     <div class="actions">
@@ -309,9 +378,24 @@ const OPTION_WITH_INSTALL = {
   "Светеща двустранна табела с диоди": 420,
   "Светеща табела - прорязан  бонд с диоди": 400,
   "Светеща двустранна табела - прорязан  бонд с диоди": 450,
+  "Обменими светещи букви - пвц 19мм с канал": 2.50,
+  "Обменими светещи букви лице плексиглас - пвц страници": 4.00,
+  "Обменими светещи букви - алуминиеви страници": 4.50,
+  "Обменими светещи букви със светеща страница до h-20 см": 5.50,
+  "Обменими светещи букви със светеща страница от h-20 до 40 см": 5.00,
 };
 
+// Products priced by count × height instead of area (only available with install)
+const LETTER_CASES = new Set([
+  "Обменими светещи букви - пвц 19мм с канал",
+  "Обменими светещи букви лице плексиглас - пвц страници",
+  "Обменими светещи букви - алуминиеви страници",
+  "Обменими светещи букви със светеща страница до h-20 см",
+  "Обменими светещи букви със светеща страница от h-20 до 40 см",
+]);
+
 // ---------- DOM ----------
+const dimensionsRow = document.getElementById('dimensionsRow');
 const widthInput   = document.getElementById('widthInput');
 const heightInput  = document.getElementById('heightInput');
 const qtyField     = document.getElementById('qtyField');
@@ -324,16 +408,81 @@ const calcBtn      = document.getElementById('calcBtn');
 const clearBtn     = document.getElementById('clearBtn');
 const priceValue   = document.getElementById('priceValue');
 const priceBox     = document.getElementById('priceBox');
+const letterFields = document.getElementById('letterFields');
+const count1Input  = document.getElementById('count1Input');
+const height1Input = document.getElementById('height1Input');
+const pair2         = document.getElementById('pair2');
+const count2Input  = document.getElementById('count2Input');
+const height2Input = document.getElementById('height2Input');
+const pair3         = document.getElementById('pair3');
+const count3Input  = document.getElementById('count3Input');
+const height3Input = document.getElementById('height3Input');
+const notEqualCheck = document.getElementById('notEqualCheck');
+
+// Groups used to organize the product dropdown into labeled, unselectable sections
+const PRODUCT_GROUPS = [
+  { label: 'Фолио', items: [
+      'Фолио печат + ламинат',
+      'Фолио фотореалистичен печат',
+      'Фолио плотерно',
+      'Фолио плотерно КАСТ',
+      'Фолио плотерно светлоотразително',
+      'Фолио плотерно гласдекор',
+      'Фолио плотерно гласдекор с печат или рязане',
+      'Фолио плотерно гласдекор с печат и рязане',
+  ]},
+  { label: 'Винил', items: [
+      'Винил промазан',
+      'Винилова мрежа / перфо винил',
+      'Винил ламиниран',
+      'Винил промазан UV',
+      'Винил промазан високо качество Жоро',
+      'Винил с метална конструкция',
+  ]},
+  { label: 'Табели и плоскости', items: [
+      'PVC табела',
+      'Добавяне на плоскост 5мм PVC',
+      'Добавяне на плоскост 3мм плексиглас',
+      'Бонд плоскост с фолио',
+      'Бонд плоскост с фолио и метална конструкция',
+  ]},
+  { label: 'Светещи табели', items: [
+      'Светеща едностранна табела с диоди',
+      'Светеща двустранна табела с диоди',
+      'Светеща табела - прорязан  бонд с диоди',
+      'Светеща двустранна табела - прорязан  бонд с диоди',
+  ]},
+  { label: 'Светещи букви', items: [
+      'Обменими светещи букви - пвц 19мм с канал',
+      'Обменими светещи букви лице плексиглас - пвц страници',
+      'Обменими светещи букви - алуминиеви страници',
+      'Обменими светещи букви със светеща страница до h-20 см',
+      'Обменими светещи букви със светеща страница от h-20 до 40 см',
+  ]},
+  { label: 'Други', items: [
+      'Перфолио',
+      'Канаваца с печат',
+      'Самозалепващ тапет',
+  ]},
+];
 
 function fillProductSelect(obj){
   productSel.innerHTML = '';
   const blank = document.createElement('option');
   blank.value=''; blank.textContent='';
   productSel.appendChild(blank);
-  Object.keys(obj).forEach(key=>{
-    const opt = document.createElement('option');
-    opt.value = key; opt.textContent = key;
-    productSel.appendChild(opt);
+
+  PRODUCT_GROUPS.forEach(group=>{
+    const presentItems = group.items.filter(name => obj[name] !== undefined);
+    if(presentItems.length === 0) return;
+    const optgroup = document.createElement('optgroup');
+    optgroup.label = group.label;
+    presentItems.forEach(name=>{
+      const opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      optgroup.appendChild(opt);
+    });
+    productSel.appendChild(optgroup);
   });
 }
 
@@ -345,7 +494,35 @@ function updateProductList(){
   } else {
     fillProductSelect({});
   }
+  updateLetterVisibility();
 }
+
+function updateExtraLetterVisibility(){
+  const show = LETTER_CASES.has(productSel.value) && notEqualCheck.checked;
+  pair2.style.display = show ? 'flex' : 'none';
+  pair3.style.display = show ? 'flex' : 'none';
+  if(!show){
+    count2Input.value = '';
+    height2Input.value = '';
+    count3Input.value = '';
+    height3Input.value = '';
+  }
+}
+
+function updateLetterVisibility(){
+  const isLetterCase = LETTER_CASES.has(productSel.value);
+  letterFields.style.display = isLetterCase ? 'block' : 'none';
+  dimensionsRow.style.display = isLetterCase ? 'none' : 'grid';
+  if(!isLetterCase){
+    count1Input.value = '';
+    height1Input.value = '';
+    notEqualCheck.checked = false;
+  }
+  updateExtraLetterVisibility();
+}
+
+productSel.addEventListener('change', updateLetterVisibility);
+notEqualCheck.addEventListener('change', updateExtraLetterVisibility);
 
 noInstall.addEventListener('change', updateProductList);
 withInstall.addEventListener('change', updateProductList);
@@ -368,15 +545,6 @@ qtyToggleBtn.addEventListener('click', ()=>{
 
 // ---------- Calculation (ported from button1_Click) ----------
 calcBtn.addEventListener('click', ()=>{
-  const wRaw = parseFloat(widthInput.value);
-  const hRaw = parseFloat(heightInput.value);
-
-  if(isNaN(wRaw) || isNaN(hRaw)){
-    priceValue.textContent = 'въведете размери';
-    priceBox.classList.remove('filled');
-    return;
-  }
-
   const currentTable = noInstall.checked ? OPTION_NO_INSTALL : (withInstall.checked ? OPTION_WITH_INSTALL : null);
   if(!currentTable || !productSel.value || currentTable[productSel.value] === undefined){
     priceValue.textContent = 'изберете продукт';
@@ -385,25 +553,51 @@ calcBtn.addEventListener('click', ()=>{
   }
   const price = currentTable[productSel.value];
 
-  let a = wRaw / 100;
-  if(a < 0.5) a = 0.5;
-  let b = hRaw / 100;
-  if(b < 0.5) b = 0.5;
-
-  const xyz = a * b;
-
   let total;
-  const qtyVisible = qtyField.style.display === 'block';
-  if(qtyVisible){
-    const xyzbr = parseFloat(qtyInput.value);
-    if(isNaN(xyzbr)){
-      priceValue.textContent = 'въведете бройки';
+
+  if(LETTER_CASES.has(productSel.value)){
+    const count1 = parseFloat(count1Input.value) || 0;
+    const height1 = parseFloat(height1Input.value) || 0;
+    let xyz = count1 * height1;
+
+    if(notEqualCheck.checked){
+      const count2 = parseFloat(count2Input.value) || 0;
+      const height2 = parseFloat(height2Input.value) || 0;
+      const count3 = parseFloat(count3Input.value) || 0;
+      const height3 = parseFloat(height3Input.value) || 0;
+      xyz += (count2 * height2) + (count3 * height3);
+    }
+
+    total = xyz * price;
+  } else {
+    const wRaw = parseFloat(widthInput.value);
+    const hRaw = parseFloat(heightInput.value);
+
+    if(isNaN(wRaw) || isNaN(hRaw)){
+      priceValue.textContent = 'въведете размери';
       priceBox.classList.remove('filled');
       return;
     }
-    total = (xyz * price) * xyzbr;
-  } else {
-    total = xyz * price;
+
+    let a = wRaw / 100;
+    if(a < 0.5) a = 0.5;
+    let b = hRaw / 100;
+    if(b < 0.5) b = 0.5;
+
+    const xyz = a * b;
+
+    const qtyVisible = qtyField.style.display === 'block';
+    if(qtyVisible){
+      const xyzbr = parseFloat(qtyInput.value);
+      if(isNaN(xyzbr)){
+        priceValue.textContent = 'въведете бройки';
+        priceBox.classList.remove('filled');
+        return;
+      }
+      total = (xyz * price) * xyzbr;
+    } else {
+      total = xyz * price;
+    }
   }
 
   const rounded = Math.round(total * 100) / 100;
@@ -420,6 +614,13 @@ clearBtn.addEventListener('click', ()=>{
   qtyToggleBtn.classList.remove('active');
   noInstall.checked = false;
   withInstall.checked = false;
+  count1Input.value = '';
+  height1Input.value = '';
+  count2Input.value = '';
+  height2Input.value = '';
+  count3Input.value = '';
+  height3Input.value = '';
+  notEqualCheck.checked = false;
   updateProductList();
   priceValue.textContent = '—';
   priceBox.classList.remove('filled');
